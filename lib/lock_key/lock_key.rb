@@ -130,13 +130,14 @@ class Redis
           _value_ = lock_value_for(key,opts)
           new_lock = _redis_.getset(_key_, _value_)
           got_lock = new_lock if i_have_the_lock?(new_lock)
+        elsif i_have_the_lock?(current_lock)
+          got_lock = current_lock
         end
         sleep opts[:sleep_for]
       end
 
       if !got_lock && opts[:raise]
-        _value_ = lock_value_for(key, opts)
-        raise LockAttemptTimeout, "Could not lock #{_value_}"
+        raise LockAttemptTimeout, "Could not lock #{key}"
       end
 
       got_lock

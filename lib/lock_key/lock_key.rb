@@ -23,7 +23,7 @@ class Redis
     @@defaults = {
       :wait_for => 60,    # seconds to wait to obtain a lock
       :expire   => 60,    # seconds till key expires
-      :raise    => false,  # raise a LockKey::LockAttemptTimeout if the lock cannot be obtained
+      :raise    => true,  # raise a LockKey::LockAttemptTimeout if the lock cannot be obtained
       :sleep_for => 0.5
     }
 
@@ -70,10 +70,28 @@ class Redis
     end
 
     # Unlocks the key. Use a block... then you don't need this
+    # @param key String the key to unlock
+    # @param opts Hash an options hash
+    # @option opts :key the value of the key to unlock.
+    #
+    # @example
+    #   # Unlock the key if this thread owns it.
+    #   redis.lock_key "foo"
+    #   # do stuff
+    #   redis.unlock_key "foo"
+    #
+    # @example
+    #   # Unlock the key in a multithreaded env
+    #   key_value = redis.lock_key "foo"
+    #   Thread.new do
+    #     # do stuff
+    #     redis.unlock_key "foo", :key => key_value
+    #   end
     def unlock_key(key, opts={})
+      lock_key = opts[:key]
       value = _redis_.get(lock_key_for(key))
       return true unless value
-      if i_have_the_lock?(value)
+      if value == lock_key || i_have_the_lock?(value)
         kill_lock!(key)
         true
       else
@@ -100,7 +118,8 @@ class Redis
 
     def obtain_lock(key, opts={})
       _key_ = lock_key_for(key)
-      return true if _redis_.setnx(_key_, lock_value_for(key,opts))
+      _value_ = lock_value_for(key,opts)
+      return _value_ if _redis_.setnx(_key_, _value_)
 
       got_lock = false
       wait_until = Time.now + opts[:wait_for]
@@ -110,13 +129,14 @@ class Redis
         if lock_expired?(current_lock)
           _value_ = lock_value_for(key,opts)
           new_lock = _redis_.getset(_key_, _value_)
-          got_lock = true if i_have_the_lock?(new_lock)
+          got_lock = new_lock if i_have_the_lock?(new_lock)
         end
         sleep opts[:sleep_for]
       end
 
       if !got_lock && opts[:raise]
-        raise LockAttemptTimeout, "Could not lock #{key}-#{LockKey.lock_key_id}"
+        _value_ = lock_value_for(key, opts)
+        raise LockAttemptTimeout, "Could not lock #{_value_}"
       end
 
       got_lock

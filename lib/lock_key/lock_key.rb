@@ -130,26 +130,26 @@ class Redis
       _value_ = lock_value_for(key,opts)
       return _value_ if _redis_.setnx(_key_, _value_)
 
-      got_lock = false
+      new_lock = nil
       wait_until = Time.now + opts[:wait_for]
 
-      until got_lock || Time.now > wait_until
+      until new_lock || Time.now > wait_until
         current_lock = _redis_.get(_key_)
         if lock_expired?(current_lock)
           _value_ = lock_value_for(key,opts)
-          new_lock = _redis_.getset(_key_, _value_)
-          got_lock = new_lock if i_have_the_lock?(new_lock)
+          attempted_lock = _redis_.getset(_key_, _value_)
+          new_lock = attempted_lock if i_have_the_lock?(attempted_lock)
         elsif i_have_the_lock?(current_lock)
-          got_lock = current_lock
+          new_lock = current_lock
         end
         sleep opts[:sleep_for]
       end
 
-      if !got_lock && opts[:raise]
+      if !new_lock && opts[:raise]
         raise LockAttemptTimeout, "Could not lock #{key}"
       end
 
-      got_lock
+      new_lock
     end
 
     def lock_expired?(lock_value)

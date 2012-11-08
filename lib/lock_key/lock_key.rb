@@ -36,16 +36,19 @@ class Redis
     def self.defaults; @@defaults; end
 
     # The lock key id for this thread. Uses uuid so that concurrency is not an issue
-    # w.r.t. keys
+    # with respect to keys
     def self.lock_key_id; Thread.current[:lock_key_id] ||= UUID_GEN.call; end
 
     # Locks a key in redis options are same as default.
     # If a block is given the lock is automatically released
     # If no block is given, be sure to unlock the key when you're done.
-    # Note... Locks should be as _Small_ as possible with respec to the time you
-    # have the lock for!
-    # @param key String The key to lock
-    # @param opts Hash the options hash for the lock
+    #
+    # Note: Concurrency is hard, and deadlock is always a danger. Don't do any
+    # more than is absolutely needed inside the lock so that the lock exists
+    # for the shortest time possible.
+    #
+    # @param key String The Redis key to lock
+    # @param opts Hash The options hash for the lock
     # @option opts :wait_for Numeric The time to wait for to obtain a lock
     # @option opts :expire Numeric The time before the lock expires
     # @option opts :raise  Causes a raise if a lock cannot be obtained
@@ -69,10 +72,16 @@ class Redis
       _redis_.del(lock_key_for(key))
     end
 
-    # Unlocks the key. Use a block... then you don't need this
-    # @param key String the key to unlock
-    # @param opts Hash an options hash
-    # @option opts :key the value of the key to unlock.
+    # Manually unlocks a key.
+    #
+    # This method is mainly intended for applications where the lock is obtained
+    # in one thread and then passed to another thread to be released. If you
+    # are obtaining and releasing a lock in the same thread, you should prefer
+    # the block form of lock_key over this method.
+    #
+    # @param key String The Redis key to unlock
+    # @param opts Hash An options hash
+    # @option opts :key The value of the key to unlock.
     #
     # @example
     #   # Unlock the key if this thread owns it.

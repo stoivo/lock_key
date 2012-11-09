@@ -27,10 +27,7 @@ class Redis
       :sleep_for => 0.5
     }
 
-    @@value_delimeter = "-:-:-"
-
-    def self.value_delimeter; @@value_delimeter; end
-    def self.value_delimeter=(del); @@value_delimeter = del; end
+    VALUE_DELIMETER = "-:-:-"
 
     def self.defaults=(defaults); @@defaults = @@defaults.merge(defaults); end
     def self.defaults; @@defaults; end
@@ -62,7 +59,7 @@ class Redis
     end
 
     def locked_key?(key)
-      !lock_expired?(_redis_.get(lock_key_for(key)))
+      !!fetch(key)
     end
 
     def kill_lock!(key)
@@ -88,10 +85,10 @@ class Redis
     #     redis.unlock_key "foo", :key => key_value
     #   end
     def unlock_key(key, opts={})
-      lock_key = opts[:key]
-      value = _redis_.get(lock_key_for(key))
+      held_value = opts[:key]
+      value = fetch(key)
       return true unless value
-      if value == lock_key || i_have_the_lock?(value)
+      if value == held_value || i_have_the_lock?(value)
         kill_lock!(key)
         true
       else
@@ -104,54 +101,60 @@ class Redis
       self
     end
 
+    def fetch(key)
+      _redis_.get lock_key_for(key)
+    end
+
     def lock_key_for(key)
       "lock_key:#{key}"
     end
 
-    def lock_value_for(key, opts)
-      "#{(Time.now + opts[:expire]).to_i}#{value_delimeter}#{LockKey.lock_key_id}"
-    end
-
-    def value_delimeter
-      LockKey.value_delimeter
+    def lock_key_value
+      LockKey.lock_key_id
     end
 
     def obtain_lock(key, opts={})
-      _key_ = lock_key_for(key)
-      _value_ = lock_value_for(key,opts)
-      return _value_ if _redis_.setnx(_key_, _value_)
+      new_lock = renew_lock_if_owned(key,opts)
+      return new_lock if new_lock
 
-      got_lock = false
       wait_until = Time.now + opts[:wait_for]
 
-      until got_lock || Time.now > wait_until
-        current_lock = _redis_.get(_key_)
-        if lock_expired?(current_lock)
-          _value_ = lock_value_for(key,opts)
-          new_lock = _redis_.getset(_key_, _value_)
-          got_lock = new_lock if i_have_the_lock?(new_lock)
-        elsif i_have_the_lock?(current_lock)
-          got_lock = current_lock
+      until new_lock || Time.now > wait_until
+        _key_ = lock_key_for(key)
+        if _redis_.setnx(_key_, lock_key_value)
+          new_lock = lock_key_value
+          _redis_.expire(_key_, opts[:expire])
         end
         sleep opts[:sleep_for]
       end
 
-      if !got_lock && opts[:raise]
+      if !new_lock && opts[:raise]
         raise LockAttemptTimeout, "Could not lock #{key}"
       end
 
-      got_lock
-    end
-
-    def lock_expired?(lock_value)
-      return true if lock_value.nil?
-      exp = lock_value.split(value_delimeter).first
-      Time.now.to_i > exp.to_i
+      new_lock
     end
 
     def i_have_the_lock?(lock_value)
       return false unless lock_value
-      lock_value.split(value_delimeter).last == LockKey.lock_key_id
+      # should just be a straight comparison, but need to roll out
+      # new code that changes things first
+      lock_value.split(VALUE_DELIMETER).last == LockKey.lock_key_id
+    end
+
+    def i_dont_have_the_lock?(lock_value)
+      !i_have_the_lock?(lock_value)
+    end
+
+    def renew_lock_if_owned(key,opts)
+      current_value = fetch(key)
+      return false if current_value && i_dont_have_the_lock?(current_value)
+      _key_ = lock_key_for(key)
+      result = _redis_.multi do
+        _redis_.set(_key_, lock_key_value)
+        _redis_.expire(_key_, opts[:expire])
+      end
+      lock_key_value if result.first == "OK"
     end
   end
 end

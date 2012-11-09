@@ -5,10 +5,6 @@ describe "LockKey" do
     REDIS.flushdb
   end
 
-  after do
-    REDIS.unlock_key "foo"
-  end
-
   it "takes out a lock" do
     REDIS.lock_key "foo"
     REDIS.locked_key?("foo").should be_true
@@ -33,7 +29,7 @@ describe "LockKey" do
     one   = lambda{ REDIS.lock_key("foo", :expire => 5) { sleep 2; captures << :one   } }
     two   = lambda{ REDIS.lock_key("foo", :expire => 5) { sleep 1; captures << :two   } }
     three = lambda{ REDIS.lock_key("foo", :expire => 5) { sleep 2; captures << :three } }
-    four  = lambda{ REDIS.lock_key("foo", :expire => 1, wait_for: 1) { sleep 2; captures << :four  } }
+    four  = lambda{ REDIS.lock_key("foo", :expire => 1, wait_for: 1, raise: false) { sleep 2; captures << :four  } }
 
     threads = []
 

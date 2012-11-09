@@ -24,6 +24,22 @@ describe "LockKey" do
     REDIS.locked_key?("foo").should be_false
   end
 
+  it "lets you request the same lock many times" do
+    REDIS.lock_key "foo"
+    expect { REDIS.lock_key "foo" }.to_not raise_error
+  end
+
+  it "raises an error when it can't get a lock" do
+    REDIS.lock_key("foo", :expire => 10)
+    t = Thread.new do
+      expect do
+        REDIS.lock_key("foo", :wait_for => 1) { sleep 1 }
+      end.to raise_error
+    end
+
+    t.join
+  end
+
   it "handles many threads" do
     captures = []
     one   = lambda{ REDIS.lock_key("foo", :expire => 5) { sleep 2; captures << :one   } }

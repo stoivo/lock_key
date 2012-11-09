@@ -23,7 +23,7 @@ Or install it yourself as:
 ## Usage
 
 Based on [redis-lock](https://github.com/PatrickTulskie/redis-lock) and the [setnx redis comments](http://redis.io/commands/setnx)
-LockKey provides basic key leve locking.
+LockKey provides basic key level locking.
 
 ## Locking a key
 

@@ -24,7 +24,7 @@ class Redis
       :wait_for => 60,    # seconds to wait to obtain a lock
       :expire   => 60,    # seconds till key expires
       :raise    => true,  # raise a LockKey::LockAttemptTimeout if the lock cannot be obtained
-      :sleep_for => 0.5
+      :sleep_for => 0.2
     }
 
     VALUE_DELIMETER = "-:-:-"

@@ -11,6 +11,11 @@ Gem::Specification.new do |gem|
   gem.description   = %q{Uses redis to take out multi-threaded/processed safe locks}
   gem.summary       = %q{Uses redis to take out multi-threaded/processed safe locks}
   gem.homepage      = ""
+  
+  gem.metadata = {
+    "bug_tracker_uri"   => "https://github.com/hassox/lock_key/issues",
+    "source_code_uri"   => "https://github.com/hassox/lock_key/tree/v#{LockKey::VERSION}",
+  }
 
   gem.files         = `git ls-files`.split($/)
   gem.executables   = gem.files.grep(%r{^bin/}).map{ |f| File.basename(f) }
